@@ -18,7 +18,7 @@ async function conectarBanco() {
 
     const pool = await sql.connect(config);
 
-    console.log("Conectado ao banco com autenticação Windows!"); // Foi deixada autenticação por windows pois ao configurar pelo SQL usando o usuário sa e a senha do banco, por algum motivo a API conectava mas não conseguia buscas os livros, mesmo o banco estava confiurado para isso. Enfim, por autenticação do Windows funcionou normlmente. //
+    console.log("Conectado ao banco com autenticação Windows!"); // Foi deixada a autenticação por winddows pois ao configurar pelo SQL usando o usuário SA e a senha do banco, por algum motivo a API conectava mas não conseguia buscar os livros, mesmo o banco estando confiurado para isso. Enfim, por autenticação do Windows funcionou normlmente. //
 
     return pool;
 
