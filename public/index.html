@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Biblioteca Online</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <h1>📚 Biblioteca Online</h1>
+
+    <div class="card">
+
+        <h2>Login</h2>
+
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="senha" placeholder="Senha">
+
+        <button onclick="login()">
+            Entrar
+        </button>
+
+    </div>
+
+    <div class="card">
+
+        <h2>Cadastrar Livro</h2>
+
+        <input type="text" id="titulo" placeholder="Título">
+        <input type="number" id="ano" placeholder="Ano">
+        <input type="number" id="estoque" placeholder="Estoque">
+        <input type="number" id="categoria" placeholder="ID Categoria">
+
+        <button onclick="cadastrarLivro()">
+            Salvar Livro
+        </button>
+
+    </div>
+
+    <div class="card">
+
+        <h2>Livros Cadastrados</h2>
+
+        <button onclick="listarLivros()">
+            Atualizar Lista
+        </button>
+
+        <div id="livros"></div>
+
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+</html>
