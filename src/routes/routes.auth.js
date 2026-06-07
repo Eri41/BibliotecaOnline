@@ -1,39 +1,92 @@
-// A ROTA DE AUTENTICAÇÃO TAMBÉM FOI CRIADA DE FORMA SEPARADA, PARA MANTER A ORGANIZAÇÃO DO PROJETO //
-// ROTA DE CADASTRO DE USUÁRIO //
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const router = express.Router();
 
-const { sql, conectarBanco } = require("../config/database");
+const pool = require("../config/database");
+
+
+
+// PARA CADASTRO DE USUÁRIO //
 
 router.post("/register", async (req, res) => {
 
     try {
 
-        const { nome, email, senha } = req.body;
+        const {
+            nome,
+            email,
+            senha
+        } = req.body;
+
+        if (!nome || !email || !senha) {
+
+            return res.status(400).json({
+                erro: "Todos os campos são obrigatórios"
+            });
+
+        }
+
+        const usuarioExistente = await pool.query(
+
+            `
+            SELECT *
+            FROM usuario
+            WHERE email = $1
+            `,
+
+            [email]
+
+        );
+
+        if (usuarioExistente.rows.length > 0) {
+
+            return res.status(409).json({
+                erro: "Email já cadastrado"
+            });
+
+        }
 
         const senhaHash = await bcrypt.hash(senha, 10);
 
-        const pool = await conectarBanco();
+        const resultado = await pool.query(
 
-        await pool.request()
-            .input("nome", sql.VarChar, nome)
-            .input("email", sql.VarChar, email)
-            .input("senha", sql.VarChar, senhaHash)
-            .query(`
-                INSERT INTO Usuario
-                (nome,email,senha)
-                VALUES
-                (@nome,@email,@senha)
-            `);
+            `
+            INSERT INTO usuario
+            (
+                nome,
+                email,
+                senha
+            )
+            VALUES
+            (
+                $1,
+                $2,
+                $3
+            )
+            RETURNING
+                id_usuario,
+                nome,
+                email
+            `,
+
+            [
+                nome,
+                email,
+                senhaHash
+            ]
+
+        );
 
         res.status(201).json({
-            mensagem: "Usuário cadastrado com sucesso"
+            mensagem: "Usuário cadastrado com sucesso",
+            usuario: resultado.rows[0]
         });
 
     } catch (erro) {
+
+        console.error(erro);
 
         res.status(500).json({
             erro: erro.message
@@ -43,33 +96,48 @@ router.post("/register", async (req, res) => {
 
 });
 
-// RODA DE LOGIN //
+
+
+// PARA LOGIN //
 
 router.post("/login", async (req, res) => {
 
     try {
 
-        const { email, senha } = req.body;
+        const {
+            email,
+            senha
+        } = req.body;
 
-        const pool = await conectarBanco();
+        if (!email || !senha) {
 
-        const resultado = await pool.request()
-            .input("email", sql.VarChar, email)
-            .query(`
-                SELECT *
-                FROM Usuario
-                WHERE email = @email
-            `);
+            return res.status(400).json({
+                erro: "Email e senha são obrigatórios"
+            });
 
-        const usuario = resultado.recordset[0];
+        }
 
-        if (!usuario) {
+        const resultado = await pool.query(
+
+            `
+            SELECT *
+            FROM usuario
+            WHERE email = $1
+            `,
+
+            [email]
+
+        );
+
+        if (resultado.rows.length === 0) {
 
             return res.status(401).json({
                 erro: "Usuário não encontrado"
             });
 
         }
+
+        const usuario = resultado.rows[0];
 
         const senhaValida = await bcrypt.compare(
             senha,
@@ -87,7 +155,8 @@ router.post("/login", async (req, res) => {
         const token = jwt.sign(
 
             {
-                id: usuario.id_usuario,
+                id_usuario: usuario.id_usuario,
+                nome: usuario.nome,
                 email: usuario.email
             },
 
@@ -99,11 +168,23 @@ router.post("/login", async (req, res) => {
 
         );
 
-        res.json({
-            token
+        res.status(200).json({
+
+            mensagem: "Login realizado com sucesso",
+
+            token,
+
+            usuario: {
+                id_usuario: usuario.id_usuario,
+                nome: usuario.nome,
+                email: usuario.email
+            }
+
         });
 
     } catch (erro) {
+
+        console.error(erro);
 
         res.status(500).json({
             erro: erro.message

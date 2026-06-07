@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { sql, conectarBanco } = require("../config/database");
+const pool = require("../config/database");
 const autenticarToken = require("../middleware/auth");
 
 
@@ -12,13 +12,21 @@ router.get("/", autenticarToken, async (req, res) => {
 
     try {
 
-        const pool = await conectarBanco();
+        const resultado = await pool.query(`
+            SELECT
+                l.id_livro,
+                l.titulo,
+                l.ano,
+                l.quantidade_estoque,
+                l.id_categoria,
+                c.nome AS categoria
+            FROM livro l
+            LEFT JOIN categoria c
+                ON l.id_categoria = c.id_categoria
+            ORDER BY l.id_livro
+        `);
 
-        const resultado = await pool
-            .request()
-            .query("SELECT * FROM Livro");
-
-        res.status(200).json(resultado.recordset);
+        res.status(200).json(resultado.rows);
 
     } catch (erro) {
 
@@ -40,20 +48,27 @@ router.get("/:id", autenticarToken, async (req, res) => {
 
     try {
 
-        const id = parseInt(req.params.id);
+        const resultado = await pool.query(
 
-        const pool = await conectarBanco();
+            `
+            SELECT
+                l.id_livro,
+                l.titulo,
+                l.ano,
+                l.quantidade_estoque,
+                l.id_categoria,
+                c.nome AS categoria
+            FROM livro l
+            LEFT JOIN categoria c
+                ON l.id_categoria = c.id_categoria
+            WHERE l.id_livro = $1
+            `,
 
-        const resultado = await pool
-            .request()
-            .input("id", sql.Int, id)
-            .query(`
-                SELECT *
-                FROM Livro
-                WHERE id_livro = @id
-            `);
+            [req.params.id]
 
-        if (resultado.recordset.length === 0) {
+        );
+
+        if (resultado.rows.length === 0) {
 
             return res.status(404).json({
                 erro: "Livro não encontrado"
@@ -61,7 +76,7 @@ router.get("/:id", autenticarToken, async (req, res) => {
 
         }
 
-        res.status(200).json(resultado.recordset[0]);
+        res.status(200).json(resultado.rows[0]);
 
     } catch (erro) {
 
@@ -103,33 +118,38 @@ router.post("/", autenticarToken, async (req, res) => {
 
         }
 
-        const pool = await conectarBanco();
+        const resultado = await pool.query(
 
-        await pool
-            .request()
-            .input("titulo", sql.VarChar, titulo)
-            .input("ano", sql.Int, ano)
-            .input("quantidade_estoque", sql.Int, quantidade_estoque)
-            .input("id_categoria", sql.Int, id_categoria)
-            .query(`
-                INSERT INTO Livro
-                (
-                    titulo,
-                    ano,
-                    quantidade_estoque,
-                    id_categoria
-                )
-                VALUES
-                (
-                    @titulo,
-                    @ano,
-                    @quantidade_estoque,
-                    @id_categoria
-                )
-            `);
+            `
+            INSERT INTO livro
+            (
+                titulo,
+                ano,
+                quantidade_estoque,
+                id_categoria
+            )
+            VALUES
+            (
+                $1,
+                $2,
+                $3,
+                $4
+            )
+            RETURNING *
+            `,
+
+            [
+                titulo,
+                ano,
+                quantidade_estoque,
+                id_categoria
+            ]
+
+        );
 
         res.status(201).json({
-            mensagem: "Livro cadastrado com sucesso"
+            mensagem: "Livro cadastrado com sucesso",
+            livro: resultado.rows[0]
         });
 
     } catch (erro) {
@@ -152,8 +172,6 @@ router.put("/:id", autenticarToken, async (req, res) => {
 
     try {
 
-        const id = parseInt(req.params.id);
-
         const {
             titulo,
             ano,
@@ -161,18 +179,19 @@ router.put("/:id", autenticarToken, async (req, res) => {
             id_categoria
         } = req.body;
 
-        const pool = await conectarBanco();
+        const existe = await pool.query(
 
-        const existe = await pool
-            .request()
-            .input("id", sql.Int, id)
-            .query(`
-                SELECT *
-                FROM Livro
-                WHERE id_livro = @id
-            `);
+            `
+            SELECT *
+            FROM livro
+            WHERE id_livro = $1
+            `,
 
-        if (existe.recordset.length === 0) {
+            [req.params.id]
+
+        );
+
+        if (existe.rows.length === 0) {
 
             return res.status(404).json({
                 erro: "Livro não encontrado"
@@ -180,25 +199,32 @@ router.put("/:id", autenticarToken, async (req, res) => {
 
         }
 
-        await pool
-            .request()
-            .input("id", sql.Int, id)
-            .input("titulo", sql.VarChar, titulo)
-            .input("ano", sql.Int, ano)
-            .input("quantidade_estoque", sql.Int, quantidade_estoque)
-            .input("id_categoria", sql.Int, id_categoria)
-            .query(`
-                UPDATE Livro
-                SET
-                    titulo = @titulo,
-                    ano = @ano,
-                    quantidade_estoque = @quantidade_estoque,
-                    id_categoria = @id_categoria
-                WHERE id_livro = @id
-            `);
+        const resultado = await pool.query(
+
+            `
+            UPDATE livro
+            SET
+                titulo = $1,
+                ano = $2,
+                quantidade_estoque = $3,
+                id_categoria = $4
+            WHERE id_livro = $5
+            RETURNING *
+            `,
+
+            [
+                titulo,
+                ano,
+                quantidade_estoque,
+                id_categoria,
+                req.params.id
+            ]
+
+        );
 
         res.status(200).json({
-            mensagem: "Livro atualizado com sucesso"
+            mensagem: "Livro atualizado com sucesso",
+            livro: resultado.rows[0]
         });
 
     } catch (erro) {
@@ -215,26 +241,25 @@ router.put("/:id", autenticarToken, async (req, res) => {
 
 
 
-// PARA  DELETAR LIVRO //
+// PARA DELETAR LIVRO //
 
 router.delete("/:id", autenticarToken, async (req, res) => {
 
     try {
 
-        const id = parseInt(req.params.id);
+        const existe = await pool.query(
 
-        const pool = await conectarBanco();
+            `
+            SELECT *
+            FROM livro
+            WHERE id_livro = $1
+            `,
 
-        const existe = await pool
-            .request()
-            .input("id", sql.Int, id)
-            .query(`
-                SELECT *
-                FROM Livro
-                WHERE id_livro = @id
-            `);
+            [req.params.id]
 
-        if (existe.recordset.length === 0) {
+        );
+
+        if (existe.rows.length === 0) {
 
             return res.status(404).json({
                 erro: "Livro não encontrado"
@@ -242,13 +267,16 @@ router.delete("/:id", autenticarToken, async (req, res) => {
 
         }
 
-        await pool
-            .request()
-            .input("id", sql.Int, id)
-            .query(`
-                DELETE FROM Livro
-                WHERE id_livro = @id
-            `);
+        await pool.query(
+
+            `
+            DELETE FROM livro
+            WHERE id_livro = $1
+            `,
+
+            [req.params.id]
+
+        );
 
         res.status(200).json({
             mensagem: "Livro removido com sucesso"
